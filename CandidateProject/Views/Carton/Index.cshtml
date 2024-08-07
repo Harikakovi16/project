@@ -14,6 +14,9 @@
         <th>
             @Html.DisplayNameFor(model => model.CartonNumber)
         </th>
+        <th>
+            Number of Equipment
+        </th>
         <th></th>
     </tr>
 
@@ -21,6 +24,9 @@
     <tr>
         <td>
             @Html.DisplayFor(modelItem => item.CartonNumber)
+        </td>
+        <td>
+            @Html.DisplayFor(modelItem => item.EquipmentCount)
         </td>
         <td>
             @Html.ActionLink("Edit", "Edit", new { id=item.Id }) |
