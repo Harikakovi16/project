@@ -17,6 +17,9 @@
         <th>
             Number of Equipment
         </th>
+        <th>
+            Actions
+        </th>
         <th></th>
     </tr>
 
@@ -34,6 +37,13 @@
             @Html.ActionLink("Delete", "Delete", new { id = item.Id }) |
             @Html.ActionLink("AddEquipment", "AddEquipment", new { id = item.Id }) |
             @Html.ActionLink("ViewCartonEquipment", "ViewCartonEquipment", new { id=item.Id })
+            
+            @using (Html.BeginForm("RemoveAllItemsFromCarton", "Carton", FormMethod.Post))
+                {
+                     @Html.AntiForgeryToken()
+                     @Html.Hidden("id", item.Id)
+                     <button type="submit" class="btn btn-danger">Remove All Items</button>
+                }
         </td>
     </tr>
 }
