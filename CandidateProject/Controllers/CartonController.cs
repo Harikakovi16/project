@@ -13,13 +13,27 @@ namespace CandidateProject.Controllers
         private CartonContext db = new CartonContext();
 
         // GET: Carton
+        // public ActionResult Index()
+        // {
+        //     var cartons = db.Cartons
+        //         .Select(c => new CartonViewModel()
+        //         {
+        //             Id = c.Id,
+        //             CartonNumber = c.CartonNumber
+        //         })
+        //         .ToList();
+
+        //     return View(cartons);
+        // }
+        //ENhancement1
         public ActionResult Index()
         {
             var cartons = db.Cartons
-                .Select(c => new CartonViewModel()
+                .Include(c => c.CartonDetails)
+                .Select(c => new
                 {
-                    Id = c.Id,
-                    CartonNumber = c.CartonNumber
+                    Carton = c,
+                    EquipmentCount = c.CartonDetails.Count
                 })
                 .ToList();
 
@@ -111,19 +125,48 @@ namespace CandidateProject.Controllers
         }
 
         // GET: Carton/Delete/5
+        // public ActionResult Delete(int? id)
+        // {
+        //     if (id == null)
+        //     {
+        //         return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+        //     }
+        //     Carton carton = db.Cartons.Find(id);
+        //     if (carton == null)
+        //     {
+        //         return HttpNotFound();
+        //     }
+        //     return View(carton);
+        // }
+
+
+       //Bug 1
         public ActionResult Delete(int? id)
         {
-            if (id == null)
+            if (id <= 0)
             {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+                return new HttpStatusCodeResult(HttpStatusCode.BadRequest, "Invalid carton ID.");
             }
-            Carton carton = db.Cartons.Find(id);
+
+            var carton = _context.Cartons.Include(c => c.CartonDetails)
+                                        .FirstOrDefault(c => c.Id == id);
+
             if (carton == null)
             {
-                return HttpNotFound();
+                return HttpNotFound("Carton not found.");
             }
-            return View(carton);
+
+            // Remove associated CartonDetails if any
+            var cartonDetails = _context.CartonDetails.Where(cd => cd.CartonId == id).ToList();
+            _context.CartonDetails.RemoveRange(cartonDetails);
+
+            // Remove the carton itself
+            _context.Cartons.Remove(carton);
+            _context.SaveChanges();
+
+            return RedirectToAction("Index");
         }
+
 
         // POST: Carton/Delete/5
         [HttpPost, ActionName("Delete")]
@@ -180,35 +223,100 @@ namespace CandidateProject.Controllers
             return View(carton);
         }
 
+        // public ActionResult AddEquipmentToCarton([Bind(Include = "CartonId,EquipmentId")] AddEquipmentViewModel addEquipmentViewModel)
+        // {
+        //     if (ModelState.IsValid)
+        //     {
+        //         var carton = db.Cartons
+        //             .Include(c => c.CartonDetails)
+        //             .Where(c => c.Id == addEquipmentViewModel.CartonId)
+        //             .SingleOrDefault();
+        //         if (carton == null)
+        //         {
+        //             return HttpNotFound();
+        //         }
+        //         var equipment = db.Equipments
+        //             .Where(e => e.Id == addEquipmentViewModel.EquipmentId)
+        //             .SingleOrDefault();
+        //         if (equipment == null)
+        //         {
+        //             return HttpNotFound();
+        //         }
+        //         var detail = new CartonDetail()
+        //         {
+        //             Carton = carton,
+        //             Equipment = equipment
+        //         };
+        //         carton.CartonDetails.Add(detail);
+        //         db.SaveChanges();
+        //     }
+        //     return RedirectToAction("AddEquipment", new { id = addEquipmentViewModel.CartonId });
+        // }
+
+        //Bug2
+
         public ActionResult AddEquipmentToCarton([Bind(Include = "CartonId,EquipmentId")] AddEquipmentViewModel addEquipmentViewModel)
         {
             if (ModelState.IsValid)
             {
+                // Retrieve the carton and equipment from the database
                 var carton = db.Cartons
                     .Include(c => c.CartonDetails)
                     .Where(c => c.Id == addEquipmentViewModel.CartonId)
                     .SingleOrDefault();
+                
                 if (carton == null)
                 {
                     return HttpNotFound();
                 }
+
                 var equipment = db.Equipments
                     .Where(e => e.Id == addEquipmentViewModel.EquipmentId)
                     .SingleOrDefault();
+                
                 if (equipment == null)
                 {
                     return HttpNotFound();
                 }
+
+                // Check if the equipment is already assigned to the same carton
+                var existingCartonDetail = db.CartonDetails
+                    .Where(cd => cd.EquipmentId == addEquipmentViewModel.EquipmentId)
+                    .SingleOrDefault();
+
+                if (existingCartonDetail != null && existingCartonDetail.CartonId == addEquipmentViewModel.CartonId)
+                {
+                    // Equipment is already assigned to this carton
+                    return new HttpStatusCodeResult(HttpStatusCode.BadRequest, "Equipment is already assigned to this carton.");
+                }
+
+                // Check if the equipment is already assigned to another carton
+                if (existingCartonDetail != null && existingCartonDetail.CartonId != addEquipmentViewModel.CartonId)
+                {
+                    // Equipment is already assigned to another carton
+                    return new HttpStatusCodeResult(HttpStatusCode.BadRequest, "Equipment is already assigned to another carton.");
+                }
+
+                // Check if the carton is not exceeding the limit of 10 pieces
+                if (carton.CartonDetails.Count >= 10)
+                {
+                    return new HttpStatusCodeResult(HttpStatusCode.BadRequest, "Carton can only hold up to 10 pieces of equipment.");
+                }
+
+                // Add the equipment to the carton
                 var detail = new CartonDetail()
                 {
                     Carton = carton,
                     Equipment = equipment
                 };
+
                 carton.CartonDetails.Add(detail);
                 db.SaveChanges();
             }
+            
             return RedirectToAction("AddEquipment", new { id = addEquipmentViewModel.CartonId });
         }
+
 
         public ActionResult ViewCartonEquipment(int? id)
         {
@@ -238,14 +346,87 @@ namespace CandidateProject.Controllers
             return View(carton);
         }
 
+        // public ActionResult RemoveEquipmentOnCarton([Bind(Include = "CartonId,EquipmentId")] RemoveEquipmentViewModel removeEquipmentViewModel)
+        // {
+        //     return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+        //     if (ModelState.IsValid)
+        //     {
+        //         //Remove code here
+        //     }
+        //     return RedirectToAction("ViewCartonEquipment", new { id = removeEquipmentViewModel.CartonId });
+        // }
+
         public ActionResult RemoveEquipmentOnCarton([Bind(Include = "CartonId,EquipmentId")] RemoveEquipmentViewModel removeEquipmentViewModel)
         {
-            return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+            // Check if the model state is valid
             if (ModelState.IsValid)
             {
-                //Remove code here
+                // Retrieve the carton including its details
+                var carton = _context.Cartons
+                    .Include(c => c.CartonDetails)
+                    .FirstOrDefault(c => c.Id == removeEquipmentViewModel.CartonId);
+                
+                if (carton == null)
+                {
+                    // Return NotFound result if carton is not found
+                    return HttpNotFound("Carton not found.");
+                }
+
+                // Retrieve the specific equipment from the carton
+                var equipment = carton.CartonDetails
+                    .FirstOrDefault(cd => cd.EquipmentId == removeEquipmentViewModel.EquipmentId);
+                
+                if (equipment == null)
+                {
+                    // Return NotFound result if equipment is not found in the carton
+                    return HttpNotFound("Equipment not found in carton.");
+                }
+
+                // Remove the equipment from the carton details
+                carton.CartonDetails.Remove(equipment);
+
+                // Optionally, remove the equipment from the CartonDetails table
+                _context.CartonDetails.Remove(equipment);
+
+                // Save changes to the database
+                _context.SaveChanges();
+
+                // Redirect to the view of the carton equipment
+                return RedirectToAction("ViewCartonEquipment", new { id = removeEquipmentViewModel.CartonId });
             }
-            return RedirectToAction("ViewCartonEquipment", new { id = removeEquipmentViewModel.CartonId });
+
+            // Return the view with validation errors if the model state is not valid
+            return View(removeEquipmentViewModel);
         }
+
+        //Enhancement2
+
+        
+        public ActionResult RemoveAllItemsFromCarton(int? id)
+        {
+            if (id <= 0)
+            {
+                return new HttpStatusCodeResult(HttpStatusCode.BadRequest, "Invalid carton ID.");
+            }
+
+            var carton = db.Cartons
+                .Include(c => c.CartonDetails)
+                .SingleOrDefault(c => c.Id == id);
+
+            if (carton == null)
+            {
+                return HttpNotFound("Carton not found.");
+            }
+
+            // Remove all CartonDetails associated with the carton
+            db.CartonDetails.RemoveRange(carton.CartonDetails);
+
+            // Save changes to the database
+            db.SaveChanges();
+
+            return RedirectToAction("Index");
+        }
+
+
     }
 }
